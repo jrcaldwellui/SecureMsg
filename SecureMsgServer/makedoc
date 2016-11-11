@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd `dirname $0`/src
+
+javadoc -d ../doc `find . -name '*.java'`

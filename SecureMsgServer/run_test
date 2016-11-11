@@ -1,0 +1,1 @@
+java -cp "classes/" ca.uwaterloo.crysp.otr.crypt.jca.JCARunTest

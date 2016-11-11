@@ -9,7 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class TemperatureServer {
+public class MsgServer {
 	static final float ERR_UNPLUGGED = -111;
 	static final float ERR_PI_NOT_CONNECTED = -222;
 	
@@ -38,7 +38,7 @@ public class TemperatureServer {
 	     try ( ServerSocket Server = new ServerSocket(portNumber)) 
 	     {
 	    	
-	    	System.out.printf("Temp server is listening on port %d\n",Server.getLocalPort());
+	    	System.out.printf("Server is listening on port %d\n",Server.getLocalPort());
     		boolean waitForConnection = true;
     		while(waitForConnection)
     		{
@@ -47,28 +47,17 @@ public class TemperatureServer {
     			Socket newSocket = Server.accept();
     			System.out.println("Connection recieved.");
     			BufferedReader in = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
-    	
-    			String idMessage = in.readLine();
-    			System.out.printf("Message Recieved: |%s|\n", idMessage);
-    			System.out.flush();
-
-    			if(idMessage.equals("Pi"))
+    			String callSign = in.readLine();
+    			
+    			if(!callSign.isEmpty())
     			{
-    				System.out.println("Pi connected");
-    				isPiConnected = true;
-    				communicateWithPi recieveInputFromPi = new communicateWithPi(newSocket);
-    				executor.execute(recieveInputFromPi);
-    			}
-    			else if(idMessage.equals("PC"))
+    				System.out.printf("%s connected\n",callSign);
+    				readerFromUser(in);
+    			}else
     			{
-    				System.out.println("PC connected");
-    				communicateWithPC pcThread = new communicateWithPC(newSocket, in);
-    				executor.execute(pcThread);
+    				System.err.println("Invalid Callsign.\n");
     			}
-    			else
-    			{
-    				System.err.println("Invalid ID message recieved.\n");
-    			}
+    			waitForConnection = false;
     		} 	 
 	    	 
 	     }catch (java.net.SocketTimeoutException e)
@@ -85,14 +74,48 @@ public class TemperatureServer {
 	
 
 	/*
-	 * goal for this function:
-	 * check for input from client, if we have input we will compare it to SEND_ALL_DATA or BUTTON_PRESSED
-	 * do what we're required to do with the input and then go back to checking for inputs 
+	 * new thread for each user
 	 */
-	private static class communicateWithPC implements Runnable {
+	//private static class directMessagesToUser
+	
+	private static class writerToUser implements Runnable{
+		writerToUser(Socket pcSocket, BufferedReader in)
+		{
+			this.pcSocket = pcSocket;
+			this.inFromPC = in;
+		}
+
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			
+		}
+		
+	}
+	
+	/*
+	 * Will take messages from user and write them to who they are connected to
+	 */
+	private static class ReaderFromUser implements Runnable{
+		BufferedReader inFromUser;
+		ReaderFromUser(BufferedReader in)
+		{
+			this.pcSocket = pcSocket;
+			this.inFromPC = in;
+		}
+		
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			
+		}
+		
+	}
+	
+	private static class CommunicateWithPC implements Runnable {
 		private Socket pcSocket;
 		BufferedReader inFromPC;
-		communicateWithPC(Socket pcSocket, BufferedReader in)
+		CommunicateWithPC(Socket pcSocket, BufferedReader in)
 		{
 			this.pcSocket = pcSocket;
 			this.inFromPC = in;

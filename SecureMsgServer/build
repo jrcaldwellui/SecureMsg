@@ -1,0 +1,7 @@
+#!/bin/bash
+
+gcc -Wall -g cdriver/driver.c -lotr -o run_alice_c
+
+cd `dirname $0`/src
+javac -source 1.3 -target 1.3 -d ../classes `find . -name rim -prune -o -name client -prune -o -name '*.java' -print`
+
