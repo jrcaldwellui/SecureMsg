@@ -1,0 +1,12 @@
+/DHCommitMessage.class
+/DHKeyMessage.class
+/DataMessage.class
+/ErrorMessage.class
+/FragmentMessage.class
+/OTREncodedMessage.class
+/OTRMessage.class
+/PlaintextMessage.class
+/QueryMessage.class
+/RevealSignatureMessage.class
+/SignatureMessage.class
+/TaggedPlaintextMessage.class
