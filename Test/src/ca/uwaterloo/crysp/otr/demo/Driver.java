@@ -1,5 +1,5 @@
 /*
- *  Java OTR library
+  *  Java OTR library
  *  Copyright (C) 2008-2009  Ian Goldberg, Muhaimeen Ashraf, Andrew Chung,
  *                           Can Tang
  *
