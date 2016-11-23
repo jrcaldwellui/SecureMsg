@@ -1,5 +1,0 @@
-#!/bin/bash
-
-rm run_alice_c
-
-find classes/ -type f -name "*.class" -exec rm -f {} \;
