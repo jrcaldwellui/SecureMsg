@@ -1,5 +1,2 @@
-/CVS/
-/MsgServer$ReaderFromUser.class
-/MsgServer$writerToUser.class
-/MsgServer.class
-/ca/
+/MsgServer$writerToAnyUserInLobby.class
+/User.class

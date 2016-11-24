@@ -28,31 +28,50 @@ import java.net.*;
 import java.io.*;
 import ca.uwaterloo.crysp.otr.*;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.*;
+
 import ca.uwaterloo.crysp.otr.iface.*;
 
 public class MsgClient {
 
+	final static int portNumber = 53617;//Set to port 0 if you don't know a specific open port
+	
 	/**
 	 * @param args
 	 * @throws IOException 
 	 * @throws OTRException 
 	 */
 	public static void main(String[] args) throws IOException, OTRException {
-
-		System.out.println("\033[31mStarting driver...\033[0m");
+		System.out.println("Starting client.");
 		System.out.print("Enter callsign: ");
-		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        String callSign = br.readLine();
-		br.close();
+		String callSign = null;
+		try(BufferedReader br = new BufferedReader(new InputStreamReader(System.in)))
+		{ 
+			callSign = br.readLine();
+		}			
 		System.out.println(callSign);
+		
 		// building the connection
 		Socket client=new Socket(
 				InetAddress.getLocalHost(),
-				53617);
-		PrintWriter outputToPi = new PrintWriter(client.getOutputStream(), true);
-		outputToPi.print(callSign);
-		outputToPi.flush();
-		outputToPi.close();
+				portNumber);
+		
+		//stream to destination
+		BufferedOutputStream out = new BufferedOutputStream( client.getOutputStream() );
+		out.write(Charset.forName("UTF-8").encode(callSign).array());
+		out.flush();
+		
+		BufferedInputStream in = new BufferedInputStream( client.getInputStream() );
+		int size = 4;
+		byte[] data = new byte[size];
+		in.read(data,0,size);
+		String mes = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();
+		System.out.printf("Server mess: %s",mes);
+		
+		
+		out.close();
+		in.close();
 		
 		
 		/*BufferedReader in=new BufferedReader(new InputStreamReader(client.getInputStream()));
