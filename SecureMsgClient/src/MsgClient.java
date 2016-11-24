@@ -36,7 +36,9 @@ import ca.uwaterloo.crysp.otr.iface.*;
 public class MsgClient {
 
 	final static int portNumber = 53617;//Set to port 0 if you don't know a specific open port
-	
+	final static int MAXNAMELENGTH = 16;//keep consistent with server, first message relies on it. 
+	final static int MINNAMELEGTH = 3;
+	static BufferedReader consoleIn = null;
 	/**
 	 * @param args
 	 * @throws IOException 
@@ -44,13 +46,9 @@ public class MsgClient {
 	 */
 	public static void main(String[] args) throws IOException, OTRException {
 		System.out.println("Starting client.");
-		System.out.print("Enter callsign: ");
-		String callSign = null;
-		try(BufferedReader br = new BufferedReader(new InputStreamReader(System.in)))
-		{ 
-			callSign = br.readLine();
-		}			
-		System.out.println(callSign);
+		System.out.print("Enter username: ");
+		String username = getInputFromConsole(MINNAMELEGTH,MAXNAMELENGTH);
+		System.out.println(username);
 		
 		// building the connection
 		Socket client=new Socket(
@@ -59,7 +57,7 @@ public class MsgClient {
 		
 		//stream to destination
 		BufferedOutputStream out = new BufferedOutputStream( client.getOutputStream() );
-		out.write(Charset.forName("UTF-8").encode(callSign).array());
+		out.write(Charset.forName("UTF-8").encode(username).array());
 		out.flush();
 		
 		BufferedInputStream in = new BufferedInputStream( client.getInputStream() );
@@ -69,10 +67,16 @@ public class MsgClient {
 		String mes = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();
 		System.out.printf("Server mess: %s",mes);
 		
+		System.out.print("Enter cmd:(/d)");
+		String cmd = getInputFromConsole(1,MAXNAMELENGTH);
+		out.write(Charset.forName("UTF-8").encode(cmd).array());
+		out.flush();
 		
 		out.close();
 		in.close();
-		
+		consoleIn.close();
+	}		
+
 		
 		/*BufferedReader in=new BufferedReader(new InputStreamReader(client.getInputStream()));
 		BufferedReader in2=new BufferedReader(new InputStreamReader(System.in));
@@ -88,8 +92,37 @@ public class MsgClient {
 			
 
 		System.out.println("\033[0m");*/
-	}
 
+
+
+/*
+ * gets input from console 
+ */
+static String getInputFromConsole(int minLength,int maxLength)
+{
+	String input =null;
+	try
+	{ 
+		if(consoleIn == null)
+		{
+			consoleIn = new BufferedReader(new InputStreamReader(System.in));
+		}
+		boolean valid = true;
+		do
+		{
+			input = consoleIn.readLine();
+			if( input.length() < minLength || input.length() > maxLength )
+			{
+				valid = false;
+				System.out.println("Invalid ");
+			}
+			
+		}while(!valid);	
+	}catch(IOException e)
+	{
+		e.printStackTrace();
+	}
+	return input;
 }
 
 class SendingThread extends Thread{
@@ -286,4 +319,5 @@ class LocalCallback implements OTRCallbacks{
 		
 	}
 	
+}
 }

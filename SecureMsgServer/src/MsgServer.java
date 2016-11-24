@@ -13,14 +13,19 @@ import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 
 public class MsgServer {
 
 	private static ExecutorService executor;
 	final static String hostName = "127.0.0.1"; // Localhost for testing
 	final static int portNumber = 53617;//Set to port 0 if you don't know a specific open port
-	static float serverCreationTime;
+	final static int MAXNAMELENGTH = 16;//keep consistent with client, first message relies on it. 
+	static long serverCreationTime;
 	static ArrayList<User> usersInLobby= new ArrayList<User>();
 	
 	public static void main(String[] args) throws IOException {
@@ -32,6 +37,7 @@ public class MsgServer {
 	    	
 	    	System.out.printf("Server is listening on port %d\n",Server.getLocalPort());
     		boolean waitForConnection = true;
+    		int i = 0;
     		while(waitForConnection)
     		{
     			//Server.setSoTimeout(180*1000);//2 min timeout during server.accept
@@ -40,36 +46,39 @@ public class MsgServer {
     			System.out.println("Connection recieved.");
     			BufferedInputStream inStream = null;
     			BufferedOutputStream outStream = null;
-    			try
+
+    			inStream = new BufferedInputStream( newSocket.getInputStream() );
+
+    			byte[] data = new byte[MAXNAMELENGTH];	    			
+    			inStream.read(data,0,MAXNAMELENGTH);
+    			ByteBuffer dataBuffer = ByteBuffer.wrap(data);
+    			removeZeroBytesFromEnd(dataBuffer);
+    			String callSign = Charset.forName("UTF-8").decode(dataBuffer).toString();
+    			
+    			
+    			outStream = new BufferedOutputStream( newSocket.getOutputStream() );
+    			outStream.write( Charset.forName("UTF-8").encode("Conn").array() );
+    			outStream.flush();
+    			
+    			if( !callSign.isEmpty() )
     			{
-	    			inStream = new BufferedInputStream( newSocket.getInputStream() );
-	    			int size = inStream.available();
-	    			byte[] data = new byte[size];	    			
-	    			inStream.read(data,0,size);
-	    			String callSign = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();
-	    			
-	    			outStream = new BufferedOutputStream( newSocket.getOutputStream() );
-	    			outStream.write( Charset.forName("UTF-8").encode("Conn").array() );
-	    			outStream.flush();
-	    			
-	    			if( !callSign.isEmpty() )
-	    			{
-	    				System.out.printf("%s connected\n",callSign);
-	    				usersInLobby.add(new User(callSign,inStream,outStream,secElapsedSinceServerStart()) );
-	    			}else
-	    			{
-	    				System.err.println("Invalid Callsign.\n");
-	    			}
-	    			waitForConnection = false;
-    			}finally
+    				System.out.printf("%s connected\n",callSign);
+    				addUserToLobby(new User(callSign,inStream,outStream,secElapsedSinceServerStart()) );
+    			}else
     			{
-    				if(inStream != null)
-    				{
-    					inStream.close();
-    					outStream.close();
-    				}
+    				System.err.println("Invalid Callsign.\n");
     			}
+	    		if(secElapsedSinceServerStart() >= 20)
+	    		{
+	    			waitForConnection = false;
+	    		}
+    			
     		} 	 
+    		Iterator<User> uit = usersInLobby.iterator();
+    		while(uit.hasNext())
+    		{
+    			System.out.printf("%s\n", uit.next().getUsername() );
+    		}
 	    	 
 	     }catch (java.net.SocketTimeoutException e)
 	     {
@@ -78,47 +87,123 @@ public class MsgServer {
 	     }  catch (IOException e) {
 	        System.err.println("Could not listen on port " + portNumber);
 	        System.exit(-1);
+	     }finally
+	     {
+	    	 
 	     }
 		
 		executor.shutdown();
 	}
 	
-
 	/*
-	 * new thread for each user
-	 */	
-	private static class writerToAnyUserInLobby implements Runnable{
-		writerToUser(Socket pcSocket, BufferedReader in)
+	 *  removes zero entries from end of byte array
+	 */
+	private static void removeZeroBytesFromEnd(ByteBuffer a)
+	{
+		int numOfZeroBytesAtEnd = 0;
+		byte[] a1 = a.array();
+		for(int i=0;i<a1.length;i++)
 		{
-			this.pcSocket = pcSocket;
-			this.inFromPC = in;
-		}
 
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-			
+			if(a1[i] == 0)
+			{
+				numOfZeroBytesAtEnd++;
+			}
+			else
+			{
+				numOfZeroBytesAtEnd=0;
+			}
+			System.out.printf("%d, ", numOfZeroBytesAtEnd);
 		}
-		
+		System.out.println("");
+		int newSize = a1.length-numOfZeroBytesAtEnd;//1-1=0 0,0
+		System.out.println(newSize);
+		a = ByteBuffer.wrap(Arrays.copyOfRange(a1, 0, newSize),0,newSize);
+	}
+	
+	/*
+	 * Adds user to lobby list, and executes new thread for reading cmds from user
+	 */
+	private static void addUserToLobby(User user)
+	{
+		usersInLobby.add(user);
+		ReadFromUserInLobby lobbyThread = new ReadFromUserInLobby(user);
+		executor.execute(lobbyThread);
 	}
 	
 	/*
 	 * Will take messages from user and write them to who they are connected to
 	 */
-	private static class ReaderFromUser implements Runnable{
-		BufferedReader inFromUser;
-		ReaderFromUser(BufferedReader in)
+	private static class ReadFromUserInLobby implements Runnable{
+		User user;
+		
+		ReadFromUserInLobby( User user)
 		{
-			this.pcSocket = pcSocket;
-			this.inFromPC = in;
+			this.user = user;
 		}
 		
 		@Override
 		public void run() {
-			// TODO Auto-generated method stub
+			try
+			{
+				while(user.isConnected())
+				{
+					byte[] data = new byte[MAXNAMELENGTH];	    			
+					user.getInStream().read(data,0,MAXNAMELENGTH);
+					ByteBuffer dataBuffer = ByteBuffer.wrap(data);
+					//removeZeroBytesFromEnd(dataBuffer);
+					char[] cmd = Charset.forName("UTF-8").decode(dataBuffer).array();
+					System.out.println(new String(cmd));
+					if(cmd[0] == '/' )
+					{
+						if(cmd[1] =='d')
+						{
+							user.getOutStream().write( Charset.forName("UTF-8").encode("DisC").array() );
+							user.getOutStream().flush();
+							user.Disconnect();
+							System.out.println("user disconnected");
+						}else if(cmd[1] == 'c')
+						{
+							System.out.println("connection cmd");
+							Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
+							Matcher m = p.matcher(new String(cmd));
+							while(m.find())
+							{
+								System.out.println(m.group("name"));
+								String name = m.group("name");
+								userToConnTo = isUserInLobby(name);
+								user.Disconnect();
+							}
+						}
+					}
+				}
+			}
+			catch(IOException e)
+			{
+				e.printStackTrace();
+			}
+			finally
+			{
+				user.Disconnect();
+			}
+			
 			
 		}
 		
+	}
+	
+	static User isUserInLobby(String username)
+	{
+		Iterator<User> i = usersInLobby.iterator();
+		while(i.hasNext())
+		{
+			User user = i.next();
+			if(user.getUsername().equals(username))
+			{
+				return user;
+			}
+		}
+		return null;
 	}
 
 	
