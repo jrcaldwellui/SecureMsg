@@ -1,6 +1,7 @@
 import java.io.*;
 
 
+
 /*
  * Contain all info about user and communicating with user
  * 
@@ -22,7 +23,23 @@ public class User
 	private final BufferedOutputStream outStream;
 	private final int timeConnected;
 	private boolean connected;
+	private User inSessionWith = null;
+	private User waitingForSessionConfirmationFrom = null;
+	public User getWaitingForSessionConfirmationFrom() {
+		return waitingForSessionConfirmationFrom;
+	}
+	public void setWaitingForSessionConfirmationFrom(User waitingForSessionConfirmationFrom) {
+		this.waitingForSessionConfirmationFrom = waitingForSessionConfirmationFrom;
+	}
+
+	private ReadFromUserInLobby readingThread = null;
 	
+	public ReadFromUserInLobby getReadingThread() {
+		return readingThread;
+	}
+	public void setReadingThread(ReadFromUserInLobby readingThread) {
+		this.readingThread = readingThread;
+	}
 	public boolean isConnected() {
 		return connected;
 	}
@@ -59,6 +76,12 @@ public class User
 			e.printStackTrace();
 		}
 		connected = false;
+	}
+	public User getInSessionWith() {
+		return inSessionWith;
+	}
+	public void setInSessionWith(User inSessionWith) {
+		this.inSessionWith = inSessionWith;
 	}
 	
 	

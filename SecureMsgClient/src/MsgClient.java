@@ -30,26 +30,35 @@ import ca.uwaterloo.crysp.otr.*;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.*;
+import java.util.Scanner;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import ca.uwaterloo.crysp.otr.iface.*;
 
 public class MsgClient {
 
+	private static ExecutorService executor;
 	final static int portNumber = 53617;//Set to port 0 if you don't know a specific open port
 	final static int MAXNAMELENGTH = 16;//keep consistent with server, first message relies on it. 
 	final static int MINNAMELEGTH = 3;
-	static BufferedReader consoleIn = null;
+	static Scanner consoleIn = null;
+	static boolean incommingConnectionRequest = false;
+	static String connectedToUser = null;
+	
 	/**
 	 * @param args
 	 * @throws IOException 
 	 * @throws OTRException 
 	 */
 	public static void main(String[] args) throws IOException, OTRException {
+		executor = Executors.newCachedThreadPool();	
 		System.out.println("Starting client.");
 		System.out.print("Enter username: ");
 		String username = getInputFromConsole(MINNAMELEGTH,MAXNAMELENGTH);
-		System.out.println(username);
-		
+
 		// building the connection
 		Socket client=new Socket(
 				InetAddress.getLocalHost(),
@@ -65,16 +74,11 @@ public class MsgClient {
 		byte[] data = new byte[size];
 		in.read(data,0,size);
 		String mes = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();
-		System.out.printf("Server mess: %s",mes);
+		System.out.printf("Server mess: %s\n",mes);
 		
-		System.out.print("Enter cmd:(/d)");
-		String cmd = getInputFromConsole(1,MAXNAMELENGTH);
-		out.write(Charset.forName("UTF-8").encode(cmd).array());
-		out.flush();
+		executor.execute(new lobbyOutputToServer(in,out));//TODO: clean up streams at some point
+		executor.execute(new lobbyInFromServer(in,out));
 		
-		out.close();
-		in.close();
-		consoleIn.close();
 	}		
 
 		
@@ -91,7 +95,107 @@ public class MsgClient {
 		new ReceivingThread(in, bob, "bob", "none", "alice", callback).start();
 			
 
-		System.out.println("\033[0m");*/
+		System.out.println("\033[0m");*
+		
+		
+		
+//requestsFromServer
+ * Read connection request
+ * print to console who wants to connect(y/n)
+
+/*console read thread
+ * accept input from console
+ * once input is taken
+ * send to server
+ */
+	
+	
+/*
+ * Lobby threads used before connection to specific user
+ * 
+ */
+private static class lobbyOutputToServer implements Runnable
+{
+	private final BufferedInputStream inStream;
+	private final BufferedOutputStream outStream;
+	
+	lobbyOutputToServer(BufferedInputStream inStream,BufferedOutputStream outStream)
+	{
+		this.inStream = inStream;
+		this.outStream = outStream;
+	}
+	
+	@Override
+	public void run() {
+		try {
+			while(true)//TODO: Change this
+			{
+				System.out.print("Enter cmd: ");
+				String cmd = getInputFromConsole(1,MAXNAMELENGTH);	
+				outStream.write(Charset.forName("UTF-8").encode(cmd).array());
+				outStream.flush();
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}
+
+/*
+ * Lobby threads used before connection to specific user
+ * 
+ */
+private static class lobbyInFromServer implements Runnable
+{
+	private final BufferedInputStream inStream;
+	private final BufferedOutputStream outStream;
+	
+	lobbyInFromServer(BufferedInputStream inStream,BufferedOutputStream outStream)
+	{
+		this.inStream = inStream;
+		this.outStream = outStream;
+	}
+	
+	@Override
+	public void run() {
+		try {
+			while(true)//TODO:change this
+			{
+				byte[] data = new byte[MAXNAMELENGTH];
+				inStream.read(data,0,MAXNAMELENGTH);	
+				
+				char[] cmd = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).array();
+				System.out.println("\n Server: "+new String(cmd));
+				if(cmd[0] == '/' )
+				{
+					if(cmd[1] == 'c')
+					{
+						Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
+						Matcher m = p.matcher(new String(cmd));
+						if(m.find())
+						{
+							incommingConnectionRequest = true;
+							System.out.println(m.group("name"));
+							String name = m.group("name");			
+							connectedToUser = name;
+							System.out.printf("Incomming connection request from %s.\n",name);
+							System.out.print("Accept (y/n): ");
+						}
+					}
+				}
+				else
+				{
+					
+				}
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}
+
 
 
 
@@ -100,28 +204,22 @@ public class MsgClient {
  */
 static String getInputFromConsole(int minLength,int maxLength)
 {
-	String input =null;
-	try
-	{ 
-		if(consoleIn == null)
-		{
-			consoleIn = new BufferedReader(new InputStreamReader(System.in));
-		}
-		boolean valid = true;
-		do
-		{
-			input = consoleIn.readLine();
-			if( input.length() < minLength || input.length() > maxLength )
-			{
-				valid = false;
-				System.out.println("Invalid ");
-			}
-			
-		}while(!valid);	
-	}catch(IOException e)
+	String input = null;
+	if(consoleIn == null)
 	{
-		e.printStackTrace();
+		consoleIn = new Scanner(System.in);
 	}
+	boolean valid = true;
+	do
+	{
+		input = consoleIn.nextLine();
+		if( input.length() < minLength || input.length() > maxLength )
+		{
+			valid = false;
+			System.out.println("Invalid ");
+		}
+		
+	}while(!valid);
 	return input;
 }
 

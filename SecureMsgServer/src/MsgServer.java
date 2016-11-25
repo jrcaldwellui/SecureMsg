@@ -51,10 +51,7 @@ public class MsgServer {
 
     			byte[] data = new byte[MAXNAMELENGTH];	    			
     			inStream.read(data,0,MAXNAMELENGTH);
-    			ByteBuffer dataBuffer = ByteBuffer.wrap(data);
-    			removeZeroBytesFromEnd(dataBuffer);
-    			String callSign = Charset.forName("UTF-8").decode(dataBuffer).toString();
-    			
+    			String callSign = removeZeroBytesFromEnd(data);
     			
     			outStream = new BufferedOutputStream( newSocket.getOutputStream() );
     			outStream.write( Charset.forName("UTF-8").encode("Conn").array() );
@@ -98,14 +95,13 @@ public class MsgServer {
 	/*
 	 *  removes zero entries from end of byte array
 	 */
-	private static void removeZeroBytesFromEnd(ByteBuffer a)
+	public static String removeZeroBytesFromEnd(byte[] data)
 	{
 		int numOfZeroBytesAtEnd = 0;
-		byte[] a1 = a.array();
-		for(int i=0;i<a1.length;i++)
+		for(int i=0;i<data.length;i++)
 		{
 
-			if(a1[i] == 0)
+			if(data[i] == 0)
 			{
 				numOfZeroBytesAtEnd++;
 			}
@@ -113,12 +109,14 @@ public class MsgServer {
 			{
 				numOfZeroBytesAtEnd=0;
 			}
-			System.out.printf("%d, ", numOfZeroBytesAtEnd);
+			//System.out.printf("%d, ", numOfZeroBytesAtEnd);
 		}
-		System.out.println("");
-		int newSize = a1.length-numOfZeroBytesAtEnd;//1-1=0 0,0
-		System.out.println(newSize);
-		a = ByteBuffer.wrap(Arrays.copyOfRange(a1, 0, newSize),0,newSize);
+		//System.out.println("");
+		int newSize = data.length-numOfZeroBytesAtEnd;//1-1=0 0,0
+		byte[] newData = Arrays.copyOfRange(data, 0, newSize);
+		String mess = Charset.forName("UTF-8").decode(ByteBuffer.wrap(newData)).toString();
+		//System.out.println("Cleaned message: "+mess);
+		return mess;
 	}
 	
 	/*
@@ -128,69 +126,14 @@ public class MsgServer {
 	{
 		usersInLobby.add(user);
 		ReadFromUserInLobby lobbyThread = new ReadFromUserInLobby(user);
+		user.setReadingThread(lobbyThread);
 		executor.execute(lobbyThread);
 	}
 	
 	/*
 	 * Will take messages from user and write them to who they are connected to
 	 */
-	private static class ReadFromUserInLobby implements Runnable{
-		User user;
-		
-		ReadFromUserInLobby( User user)
-		{
-			this.user = user;
-		}
-		
-		@Override
-		public void run() {
-			try
-			{
-				while(user.isConnected())
-				{
-					byte[] data = new byte[MAXNAMELENGTH];	    			
-					user.getInStream().read(data,0,MAXNAMELENGTH);
-					ByteBuffer dataBuffer = ByteBuffer.wrap(data);
-					//removeZeroBytesFromEnd(dataBuffer);
-					char[] cmd = Charset.forName("UTF-8").decode(dataBuffer).array();
-					System.out.println(new String(cmd));
-					if(cmd[0] == '/' )
-					{
-						if(cmd[1] =='d')
-						{
-							user.getOutStream().write( Charset.forName("UTF-8").encode("DisC").array() );
-							user.getOutStream().flush();
-							user.Disconnect();
-							System.out.println("user disconnected");
-						}else if(cmd[1] == 'c')
-						{
-							System.out.println("connection cmd");
-							Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
-							Matcher m = p.matcher(new String(cmd));
-							while(m.find())
-							{
-								System.out.println(m.group("name"));
-								String name = m.group("name");
-								userToConnTo = isUserInLobby(name);
-								user.Disconnect();
-							}
-						}
-					}
-				}
-			}
-			catch(IOException e)
-			{
-				e.printStackTrace();
-			}
-			finally
-			{
-				user.Disconnect();
-			}
-			
-			
-		}
-		
-	}
+	
 	
 	static User isUserInLobby(String username)
 	{
