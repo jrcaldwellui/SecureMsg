@@ -1,4 +1,5 @@
 import java.io.*;
+import java.util.concurrent.Future;
 
 
 
@@ -32,12 +33,13 @@ public class User
 		this.waitingForSessionConfirmationFrom = waitingForSessionConfirmationFrom;
 	}
 
-	private ReadFromUserInLobby readingThread = null;
+	private ReadFromUser readingThread = null;
+	private Future<?> futureOfThread = null;//Used to cancel thread
 	
-	public ReadFromUserInLobby getReadingThread() {
+	public ReadFromUser getReadingThread() {
 		return readingThread;
 	}
-	public void setReadingThread(ReadFromUserInLobby readingThread) {
+	public void setReadingThread(ReadFromUser readingThread) {
 		this.readingThread = readingThread;
 	}
 	public boolean isConnected() {
@@ -80,10 +82,34 @@ public class User
 	public User getInSessionWith() {
 		return inSessionWith;
 	}
-	public void setInSessionWith(User inSessionWith) {
-		this.inSessionWith = inSessionWith;
+	
+	public void startChatSessionWith(User user) {
+		this.inSessionWith = user;
 	}
 	
+	/*
+	 * Dont call if you want both users to end session call endSession
+	 */
+	public void leaveCurrentSession()
+	{
+		waitingForSessionConfirmationFrom = null;
+		inSessionWith = null;
+	}
 	
+	/*
+	 * Makes both users leave their session.
+	 */
+	public void endSession()
+	{
+		inSessionWith.leaveCurrentSession();
+		leaveCurrentSession();
+	}
+	
+	public Future<?> getFutureOfThread() {
+		return futureOfThread;
+	}
+	public void setFutureOfThread(Future<?> futureOfThread) {
+		this.futureOfThread = futureOfThread;
+	}
 	
 }

@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,6 +20,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 
+
+/*
+ * Users connected to server are in lobby
+ * Users talking with another are in session
+ */
 public class MsgServer {
 
 	private static ExecutorService executor;
@@ -34,7 +40,6 @@ public class MsgServer {
 		
 	     try ( ServerSocket Server = new ServerSocket(portNumber)) 
 	     {
-	    	
 	    	System.out.printf("Server is listening on port %d\n",Server.getLocalPort());
     		boolean waitForConnection = true;
     		int i = 0;
@@ -65,11 +70,6 @@ public class MsgServer {
     			{
     				System.err.println("Invalid Callsign.\n");
     			}
-	    		if(secElapsedSinceServerStart() >= 20)
-	    		{
-	    			waitForConnection = false;
-	    		}
-    			
     		} 	 
     		Iterator<User> uit = usersInLobby.iterator();
     		while(uit.hasNext())
@@ -125,16 +125,20 @@ public class MsgServer {
 	private static void addUserToLobby(User user)
 	{
 		usersInLobby.add(user);
-		ReadFromUserInLobby lobbyThread = new ReadFromUserInLobby(user);
+		ReadFromUser lobbyThread = new ReadFromUser(user);
 		user.setReadingThread(lobbyThread);
-		executor.execute(lobbyThread);
+		user.setFutureOfThread( executor.submit(lobbyThread) );
+	}
+	
+	public static void removeUserFromLobby(User user)
+	{
+		usersInLobby.remove(user);
+		user.Disconnect();
 	}
 	
 	/*
-	 * Will take messages from user and write them to who they are connected to
+	 * returns: 
 	 */
-	
-	
 	static User isUserInLobby(String username)
 	{
 		Iterator<User> i = usersInLobby.iterator();

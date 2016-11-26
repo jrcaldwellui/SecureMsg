@@ -30,6 +30,7 @@ import ca.uwaterloo.crysp.otr.*;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.*;
+import java.util.Arrays;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -46,9 +47,12 @@ public class MsgClient {
 	final static int MINNAMELEGTH = 3;
 	static Scanner consoleIn = null;
 	static boolean incommingConnectionRequest = false;
-	static String connectedToUser = null;
-	
+	static String connectedToUser = null; //name who client is concected to
+	static Socket client = null;
 	/**
+	 * 
+	 * Set up threads for writing and reading to server
+	 * 
 	 * @param args
 	 * @throws IOException 
 	 * @throws OTRException 
@@ -60,25 +64,29 @@ public class MsgClient {
 		String username = getInputFromConsole(MINNAMELEGTH,MAXNAMELENGTH);
 
 		// building the connection
-		Socket client=new Socket(
+		client=new Socket(
 				InetAddress.getLocalHost(),
 				portNumber);
 		
-		//stream to destination
+		//stream to server
 		BufferedOutputStream out = new BufferedOutputStream( client.getOutputStream() );
 		out.write(Charset.forName("UTF-8").encode(username).array());
 		out.flush();
 		
+		//stream from server
 		BufferedInputStream in = new BufferedInputStream( client.getInputStream() );
+		
+		//Ack from server
 		int size = 4;
 		byte[] data = new byte[size];
 		in.read(data,0,size);
-		String mes = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();
+		String mes = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();//this is where server acknolges connections, send conn
 		System.out.printf("Server mess: %s\n",mes);
 		
-		executor.execute(new lobbyOutputToServer(in,out));//TODO: clean up streams at some point
-		executor.execute(new lobbyInFromServer(in,out));
-		
+		//TODO: confirm server connection before creating reading thread
+		executor.execute(new writeToServer(in,out));//TODO: clean up streams at some point
+		executor.execute(new readFromServer(in,out));
+		executor.shutdown();
 	}		
 
 		
@@ -111,15 +119,14 @@ public class MsgClient {
 	
 	
 /*
- * Lobby threads used before connection to specific user
- * 
+ * Handles user cmds and msgs to the server
  */
-private static class lobbyOutputToServer implements Runnable
+private static class writeToServer implements Runnable
 {
 	private final BufferedInputStream inStream;
 	private final BufferedOutputStream outStream;
 	
-	lobbyOutputToServer(BufferedInputStream inStream,BufferedOutputStream outStream)
+	writeToServer(BufferedInputStream inStream,BufferedOutputStream outStream)
 	{
 		this.inStream = inStream;
 		this.outStream = outStream;
@@ -128,79 +135,179 @@ private static class lobbyOutputToServer implements Runnable
 	@Override
 	public void run() {
 		try {
-			while(true)//TODO: Change this
+			while(true)
 			{
-				System.out.print("Enter cmd: ");
-				String cmd = getInputFromConsole(1,MAXNAMELENGTH);	
-				outStream.write(Charset.forName("UTF-8").encode(cmd).array());
-				outStream.flush();
-			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-}
-
-/*
- * Lobby threads used before connection to specific user
- * 
- */
-private static class lobbyInFromServer implements Runnable
-{
-	private final BufferedInputStream inStream;
-	private final BufferedOutputStream outStream;
-	
-	lobbyInFromServer(BufferedInputStream inStream,BufferedOutputStream outStream)
-	{
-		this.inStream = inStream;
-		this.outStream = outStream;
-	}
-	
-	@Override
-	public void run() {
-		try {
-			while(true)//TODO:change this
-			{
-				byte[] data = new byte[MAXNAMELENGTH];
-				inStream.read(data,0,MAXNAMELENGTH);	
-				
-				char[] cmd = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).array();
-				System.out.println("\n Server: "+new String(cmd));
-				if(cmd[0] == '/' )
+				System.out.print("Enter cmd/msg (/h for help): ");
+				String msg = getInputFromConsole(1,MAXNAMELENGTH);
+				if(msg.startsWith("/"))
 				{
-					if(cmd[1] == 'c')
+					if( !tryToHandleCommandLocally(msg) )
 					{
-						Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
-						Matcher m = p.matcher(new String(cmd));
-						if(m.find())
-						{
-							incommingConnectionRequest = true;
-							System.out.println(m.group("name"));
-							String name = m.group("name");			
-							connectedToUser = name;
-							System.out.printf("Incomming connection request from %s.\n",name);
-							System.out.print("Accept (y/n): ");
-						}
+						sendMsgToServer(msg);
 					}
 				}
 				else
 				{
-					
+					sendMsgToServer(msg);
 				}
+				
 			}
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
+		}catch (SocketException e) {
+			System.out.println("Write thread disconnected.");
+		}
+		catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
+	
+	/*
+	 * Handles cmds that can be dealt with locally
+	 * Also does validation check on cmds going to server
+	 * @return false if can't handle locally
+	 */
+	private boolean tryToHandleCommandLocally(String cmd) throws IOException
+	{
+		if(cmd.startsWith("/h"))
+		{
+			System.out.println("cmd list:");
+			System.out.println("/e disconnect from server");
+			System.out.println("/c \"username\" connect to user" );
+			System.out.println("/d disconnect from user");
+			return true;
+		}else if(cmd.startsWith("/c"))
+		{
+			Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");//TODO: change this copy paste patern code to method 
+			Matcher m = p.matcher(cmd);
+			if(m.find())
+			{
+				incommingConnectionRequest = true;
+				String name = m.group("name");
+				connectedToUser = name;
+			}
+			else
+			{
+				System.out.println("Invalid cmd, type /h for help.");
+				return true;
+			}
+		}else if(cmd.startsWith("/e"))
+		{
+			client.close();
+		}
+		
+		return false;
+	}
+	
+	/*
+	 * encodes string as UTF-8 and writes to server
+	 * @param msg String to send
+	 */
+	private void sendMsgToServer(String msg) throws IOException
+	{
+		//TODO: validate UTF-8 chars
+		outStream.write(Charset.forName("UTF-8").encode(msg).array());
+		outStream.flush();
+	}
+}
+
+/*
+ * Lobby threads used before connection to specific user
+ */
+private static class readFromServer implements Runnable
+{
+	private final BufferedInputStream inStream;
+	private final BufferedOutputStream outStream;
+	
+	readFromServer(BufferedInputStream inStream,BufferedOutputStream outStream)
+	{
+		this.inStream = inStream;
+		this.outStream = outStream;
+	}
+	
+	@Override
+	public void run() {
+		try {
+			while(true)
+			{
+				byte[] data = new byte[MAXNAMELENGTH];
+				inStream.read(data,0,MAXNAMELENGTH);//Reads 16bytes from stream	
+				String msg = getStringFromRawData(data);
+		
+				//check if cmd
+				if(msg.startsWith("/"))
+				{
+					System.out.println("\nServer: "+new String(msg));
+					handleCommandFromServer(msg);
+				}
+				else
+				{
+					System.out.println("\n"+connectedToUser+": "+new String(msg));
+					System.out.print("Enter cmd/msg: ");
+				}
+			}
+		}catch (SocketException e){
+			System.out.println("\nRead thread disconnected.");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
+	}
+	
+	/*
+	 * Handle actions associated with cmds the server may send user
+	 */
+	private void handleCommandFromServer(String cmd)
+	{
+		if(cmd.startsWith("/c"))// connect to user
+		{
+			//finds name surrounded by parenthesis
+			Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
+			Matcher m = p.matcher(new String(cmd));
+			if(m.find())
+			{
+				incommingConnectionRequest = true;
+				String name = m.group("name");			
+				connectedToUser = name;
+				
+				//Display info to user
+				System.out.printf("Incomming connection request from %s.\n",name);
+				System.out.println("To Accept type exactly:/c \""+name+"\"");
+				System.out.print("Enter cmd/msg (/h for help): ");
+			}
+		}
+	}
+	
+	/*
+	 *  removes zero entries from end of byte array return UTF-8 rep string
+	 */
+	public static String getStringFromRawData(byte[] data)
+	{
+		int numOfZeroBytesAtEnd = 0;
+		for(int i=0;i<data.length;i++)
+		{
+			if(data[i] == 0)
+			{
+				numOfZeroBytesAtEnd++;
+			}
+			else
+			{
+				numOfZeroBytesAtEnd=0;
+			}
+		}
+		int newSize = data.length-numOfZeroBytesAtEnd;//1-1=0 0,0
+		byte[] newData = Arrays.copyOfRange(data, 0, newSize);
+		String mess = Charset.forName("UTF-8").decode(ByteBuffer.wrap(newData)).toString();
+		return mess;
+	}
+	
 }
 
 
 
 
+
+
 /*
- * gets input from console 
+ * Gets input from console 
  */
 static String getInputFromConsole(int minLength,int maxLength)
 {
@@ -223,6 +330,8 @@ static String getInputFromConsole(int minLength,int maxLength)
 	return input;
 }
 
+
+//not used yet: example
 class SendingThread extends Thread{
 	private BufferedReader in;
 	private OTRContext conn;
@@ -286,6 +395,7 @@ class SendingThread extends Thread{
 	}
 }
 
+//not used yet example
 class ReceivingThread extends Thread{
 	private BufferedReader in;
 	private OTRInterface us;
@@ -328,6 +438,7 @@ class ReceivingThread extends Thread{
 	}
 }
 
+//Nothing below used all examples
 class LocalCallback implements OTRCallbacks{
 	
 	Socket soc;
