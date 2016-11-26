@@ -164,16 +164,7 @@ public class MsgServer {
 		return (int)(elapsedTimeMilli/1000.0f);
 	}
 	
-	/**
-	 * Temporary function for random values
-	 */
-	void randomData() {
-		int i;
-		for (i=0; i<300; i++) {
-			// data must be >=10 && <=50
-			data[i] = (int) (10 + Math.random()*40);
-		}
-	}
+
 	
 	
 }
