@@ -30,7 +30,7 @@ public class MsgServer {
 	private static ExecutorService executor;
 	final static String hostName = "127.0.0.1"; // Localhost for testing
 	final static int portNumber = 53617;//Set to port 0 if you don't know a specific open port
-	final static int MAXNAMELENGTH = 16;//keep consistent with client, first message relies on it. 
+	final static int MAXMESSAGEBYTES = 160;//keep consistent with client
 	static long serverCreationTime;
 	static ArrayList<User> usersInLobby= new ArrayList<User>();
 	
@@ -42,10 +42,8 @@ public class MsgServer {
 	     {
 	    	System.out.printf("Server is listening on port %d\n",Server.getLocalPort());
     		boolean waitForConnection = true;
-    		int i = 0;
     		while(waitForConnection)
     		{
-    			//Server.setSoTimeout(180*1000);//2 min timeout during server.accept
     			System.out.print("server awaiting connection\n");
     			Socket newSocket = Server.accept();
     			System.out.println("Connection recieved.");
@@ -54,9 +52,9 @@ public class MsgServer {
 
     			inStream = new BufferedInputStream( newSocket.getInputStream() );
 
-    			byte[] data = new byte[MAXNAMELENGTH];	    			
-    			inStream.read(data,0,MAXNAMELENGTH);
-    			String callSign = removeZeroBytesFromEnd(data);
+    			byte[] data = new byte[MAXMESSAGEBYTES];	    			
+    			inStream.read(data,0,MAXMESSAGEBYTES);
+    			String callSign = getStringFromRawData(data);
     			
     			outStream = new BufferedOutputStream( newSocket.getOutputStream() );
     			outStream.write( Charset.forName("UTF-8").encode("Conn").array() );
@@ -93,9 +91,9 @@ public class MsgServer {
 	}
 	
 	/*
-	 *  removes zero entries from end of byte array
+	 *  removes zero entries from end of byte array return UTF-8 rep string
 	 */
-	public static String removeZeroBytesFromEnd(byte[] data)
+	public static String getStringFromRawData(byte[] data)
 	{
 		int numOfZeroBytesAtEnd = 0;
 		for(int i=0;i<data.length;i++)
@@ -127,7 +125,7 @@ public class MsgServer {
 		usersInLobby.add(user);
 		ReadFromUser lobbyThread = new ReadFromUser(user);
 		user.setReadingThread(lobbyThread);
-		user.setFutureOfThread( executor.submit(lobbyThread) );
+		executor.execute(lobbyThread);
 	}
 	
 	public static void removeUserFromLobby(User user)
@@ -137,7 +135,7 @@ public class MsgServer {
 	}
 	
 	/*
-	 * returns: 
+	 * @return user if they are in lobby, null if no user with name is in lobby
 	 */
 	static User isUserInLobby(String username)
 	{

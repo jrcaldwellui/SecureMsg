@@ -4,53 +4,23 @@ import java.util.concurrent.Future;
 
 
 /*
- * Contain all info about user and communicating with user
+ * Contains all info about user and communicating with user
  * 
  */
 public class User 
 {
-	public String getUsername() {
-		return username;
-	}
-	public BufferedInputStream getInStream() {
-		return inStream;
-	}
-	public BufferedOutputStream getOutStream() {
-		return outStream;
-	}
+
 
 	private final String username;
 	private final BufferedInputStream inStream;
 	private final BufferedOutputStream outStream;
 	private final int timeConnected;
 	private boolean connected;
-	private User inSessionWith = null;
-	private User waitingForSessionConfirmationFrom = null;
-	public User getWaitingForSessionConfirmationFrom() {
-		return waitingForSessionConfirmationFrom;
-	}
-	public void setWaitingForSessionConfirmationFrom(User waitingForSessionConfirmationFrom) {
-		this.waitingForSessionConfirmationFrom = waitingForSessionConfirmationFrom;
-	}
-
-	private ReadFromUser readingThread = null;
-	private Future<?> futureOfThread = null;//Used to cancel thread
+	private User inSessionWith = null;		//current chat session partner
+	private User waitingForSessionConfirmationFrom = null; //if user requests session this will contain the user they are requesting from
+	private ReadFromUser readingThread = null;	//thread server uses to read from this user
 	
-	public ReadFromUser getReadingThread() {
-		return readingThread;
-	}
-	public void setReadingThread(ReadFromUser readingThread) {
-		this.readingThread = readingThread;
-	}
-	public boolean isConnected() {
-		return connected;
-	}
-	public void setConnected(boolean connected) {
-		this.connected = connected;
-	}
-	public int getTimeConnected() {
-		return timeConnected;
-	}
+
 	User(String userName, BufferedInputStream inStream , BufferedOutputStream outStream, int timeConnected)
 	{
 		this.username = userName;
@@ -79,6 +49,32 @@ public class User
 		}
 		connected = false;
 	}
+
+	
+
+	/*
+	 * Makes both users leave their session.
+	 */
+	public void endSession()
+	{
+		if(inSessionWith != null)
+		{
+			inSessionWith.leaveCurrentSession();
+		}	
+		leaveCurrentSession();
+	}
+	
+	/*
+	 * Don't call directly, call endSession if you want both users to end session 
+	 */
+	public void leaveCurrentSession()
+	{
+		waitingForSessionConfirmationFrom = null;
+		inSessionWith = null;
+	}
+	
+	
+	//simple getter/setters
 	public User getInSessionWith() {
 		return inSessionWith;
 	}
@@ -87,29 +83,37 @@ public class User
 		this.inSessionWith = user;
 	}
 	
-	/*
-	 * Dont call if you want both users to end session call endSession
-	 */
-	public void leaveCurrentSession()
-	{
-		waitingForSessionConfirmationFrom = null;
-		inSessionWith = null;
+	public User getWaitingForSessionConfirmationFrom() {
+		return waitingForSessionConfirmationFrom;
+	}
+	public void setWaitingForSessionConfirmationFrom(User waitingForSessionConfirmationFrom) {
+		this.waitingForSessionConfirmationFrom = waitingForSessionConfirmationFrom;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+	public BufferedInputStream getInStream() {
+		return inStream;
+	}
+	public BufferedOutputStream getOutStream() {
+		return outStream;
 	}
 	
-	/*
-	 * Makes both users leave their session.
-	 */
-	public void endSession()
-	{
-		inSessionWith.leaveCurrentSession();
-		leaveCurrentSession();
+	public ReadFromUser getReadingThread() {
+		return readingThread;
 	}
-	
-	public Future<?> getFutureOfThread() {
-		return futureOfThread;
+	public void setReadingThread(ReadFromUser readingThread) {
+		this.readingThread = readingThread;
 	}
-	public void setFutureOfThread(Future<?> futureOfThread) {
-		this.futureOfThread = futureOfThread;
+	public boolean isConnected() {
+		return connected;
+	}
+	public void setConnected(boolean connected) {
+		this.connected = connected;
+	}
+	public int getTimeConnected() {
+		return timeConnected;
 	}
 	
 }

@@ -3,6 +3,11 @@ import java.nio.charset.Charset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
+/*
+ * Reads from user handles cmds sent by user
+ * if chat session has started with another user all msg data is directly fwded
+ */
 public class ReadFromUser implements Runnable{
 	User user;
 	
@@ -17,20 +22,28 @@ public class ReadFromUser implements Runnable{
 		{
 			while(user.isConnected())
 			{
-				byte[] data = new byte[MsgServer.MAXNAMELENGTH];	   
-				user.getInStream().read(data,0,MsgServer.MAXNAMELENGTH);
-				char[] msg = MsgServer.removeZeroBytesFromEnd(data).toCharArray();
+				byte[] data = new byte[MsgServer.MAXMESSAGEBYTES];	   
+				int connectionStatus = user.getInStream().read(data,0,MsgServer.MAXMESSAGEBYTES);
+				String msg = MsgServer.getStringFromRawData(data);
 				System.out.println(user.getUsername()+": "+new String(msg));
 				
-				if(msg[0] == '/' )//msg is cmd
+				if(connectionStatus != -1)
 				{
-					handleCommand(msg);
-				}else if(user.getInSessionWith() != null)//msg is 
-				{
-					System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
-					user.getInSessionWith().getOutStream().write(data);
-					user.getInSessionWith().getOutStream().flush();
+					if(msg.startsWith("/"))//msg is cmd
+					{
+						handleCommand(msg);
+					}else if(user.getInSessionWith() != null)//msg is 
+					{
+						System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
+						user.getInSessionWith().getOutStream().write(data);
+						user.getInSessionWith().getOutStream().flush();
+					}
 				}
+				else
+				{
+					user.Disconnect();
+				}
+					
 			}
 		}
 		catch(IOException e)
@@ -40,8 +53,7 @@ public class ReadFromUser implements Runnable{
 		finally
 		{
 			System.out.println(user.getUsername() +" disconnected from server.");
-			user.getFutureOfThread().cancel(true);//stops user's thread
-			user.leaveCurrentSession();
+			user.endSession();
 			MsgServer.removeUserFromLobby(user);
 			user.Disconnect();
 		}
@@ -51,20 +63,18 @@ public class ReadFromUser implements Runnable{
 	/*
 	 * manages all actions 
 	 */
-	private void handleCommand(char[] cmd) throws IOException
+	private void handleCommand(String cmd) throws IOException
 	{
-		if(cmd[1] == 'c')//TODO: clean bloated chunk of code
+		if(cmd.startsWith("/c"))//TODO: clean bloated chunk of code
 		{
-			Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
-			Matcher m = p.matcher(new String(cmd));
-			while(m.find())
+			String name = extractSubstringInParenthesis(cmd);
+			if(name != null)
 			{
-				String name = m.group("name");
 				System.out.println(user.getUsername() + " requesting connection to: "+name);
 				User userToConnTo = MsgServer.isUserInLobby(name);
 				if(userToConnTo != null)
 				{
-					if(userToConnTo.getWaitingForSessionConfirmationFrom() == user )
+					if(userToConnTo.getWaitingForSessionConfirmationFrom() == user )// check if userToConnTo is already waiting for connection to user
 					{	
 						System.out.println(userToConnTo.getUsername()+" already wating for connection, notifying their thread");
 						user.startChatSessionWith(userToConnTo);
@@ -83,12 +93,13 @@ public class ReadFromUser implements Runnable{
 						try {
 							synchronized(userToConnTo.getReadingThread())
 							{
-								userToConnTo.getReadingThread().wait((long)30000);
+								userToConnTo.getReadingThread().wait((long)30000);//thread waits 30 sec for other user to confirm chat session
 							}
 	
 						} catch (InterruptedException e) {
 							e.printStackTrace();
 						}
+						
 						user.setWaitingForSessionConfirmationFrom(null);
 						if(userToConnTo.getInSessionWith() == user)
 						{
@@ -105,12 +116,26 @@ public class ReadFromUser implements Runnable{
 					System.err.println("No user with name "+name+" found in lobby.");
 				}
 			}
-		}else if(cmd[1]== 'd')
+		}else if(cmd.startsWith("/d"))
 		{
 			System.out.println("Leaving current session");
 			user.leaveCurrentSession();
 		}
-		
-		
+	}
+	
+	/*
+	 * Gets substring in parenthesis from string
+	 * @param s string of format ..."infoToExtract"...
+	 * @return substring in parenthesis or null if no parenthesis
+	 */
+	private String extractSubstringInParenthesis(String s)
+	{
+		Pattern p = Pattern.compile("(?:\"(?<name>.+)\"){1}?");
+		Matcher m = p.matcher(s);
+		if(m.find())
+		{
+			return m.group("name");
+		}
+		return null;
 	}
 }
