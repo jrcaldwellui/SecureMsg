@@ -20,13 +20,14 @@ public class User
 
 	private final String username;
 	private final BufferedReader inStream;
-	private final BufferedOutputStream outStream;
+	private final PrintWriter outStream;
 	private final int timeConnected;
 	private boolean connected;
 	private User inSessionWith = null;		//current chat session partner
 	private User waitingForSessionConfirmationFrom = null; //if user requests session this will contain the user they are requesting from
 	private ReadFromUser readingThread = null;	//thread server uses to read from this user
 	private final OTRInterface us;
+	
 	
 	public OTRInterface getInterface() {
 		return us;
@@ -37,13 +38,13 @@ public class User
 
 	private final OTRCallbacks callbacks;
 
-	User(String userName, BufferedReader inStream , int timeConnected, OTRCallbacks callbacks, OTRInterface us)
+	User(String userName, BufferedReader inStream, PrintWriter outStream , int timeConnected, OTRCallbacks callbacks, OTRInterface us)
 	{
 		this.username = userName;
 		this.inStream = inStream;
 		this.callbacks = callbacks;
 		this.us = us;
-		this.outStream = null;//TODO: Address this will break other code
+		this.outStream = outStream;
 		this.timeConnected = timeConnected;
 		connected = true;
 	}
@@ -60,12 +61,7 @@ public class User
 			System.err.printf("Issue closing %s's input stream\n",username);
 			e.printStackTrace();
 		}
-		try {
-			outStream.close();
-		} catch (IOException e) {
-			System.err.printf("Issue closing %s's output stream\n",username);
-			e.printStackTrace();
-		}
+		outStream.close();
 		connected = false;
 	}
 
@@ -115,7 +111,7 @@ public class User
 	public BufferedReader getInStream() {
 		return inStream;
 	}
-	public BufferedOutputStream getOutStream() {
+	public PrintWriter getOutStream() {
 		return outStream;
 	}
 	

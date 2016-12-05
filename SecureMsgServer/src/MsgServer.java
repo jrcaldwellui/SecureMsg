@@ -37,13 +37,15 @@ public class MsgServer {
 	final static String hostName = "127.0.0.1"; // Localhost for testing
 	final static int portNumber = 53617;//Set to port 0 if you don't know a specific open port
 	final static int MAXMESSAGEBYTES = 160;//keep consistent with client
+	public static OTRInterface serverInterface; 
 	static long serverCreationTime;
 	static ArrayList<User> usersInLobby= new ArrayList<User>();
 	
 	public static void main(String[] args) throws IOException {
 		executor = Executors.newCachedThreadPool();	
 		serverCreationTime = System.nanoTime();
-		
+		serverInterface = new UserState(new ca.uwaterloo.crysp.otr.crypt.jca.JCAProvider());
+
 	     try ( ServerSocket Server = new ServerSocket(portNumber)) 
 	     {
 	    	System.out.printf("Server is listening on port %d\n",Server.getLocalPort());
@@ -56,13 +58,13 @@ public class MsgServer {
     			System.out.println("Connection recieved.");
 
     			BufferedReader inStream = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
-    			OTRInterface server = new UserState(new ca.uwaterloo.crysp.otr.crypt.jca.JCAProvider());
-    			OTRCallbacks callback = new LocalCallback(newSocket);
+    			PrintWriter outStream = new PrintWriter(newSocket.getOutputStream());
+    			OTRCallbacks callback = new LocalCallback(outStream);
     			String username = inStream.readLine().trim();//TODO:change to real value
     			if( true /*!callSign.isEmpty()*/ )
     			{
     				System.out.printf("%s connected\n",username);
-    				addUserToLobby(new User(username,inStream,secElapsedSinceServerStart(),callback,server) );
+    				addUserToLobby(new User(username,inStream,outStream,secElapsedSinceServerStart(),callback,serverInterface) );
     			}else
     			{
     				System.err.println("Invalid Callsign.\n");
@@ -166,12 +168,10 @@ public class MsgServer {
 
 class LocalCallback implements OTRCallbacks
 {
-	Socket soc;
 	PrintWriter out;
 	
-	public LocalCallback(Socket sock) throws IOException{
-		soc=sock;
-		out=new PrintWriter(soc.getOutputStream());
+	public LocalCallback(PrintWriter out) throws IOException{
+		this.out = out;
 	}
 
 	public void injectMessage(String accName, String prot, String rec, String msg){

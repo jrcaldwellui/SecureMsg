@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.Charset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,24 +44,31 @@ public class ReadFromUser implements Runnable{
 		{
 			while(user.isConnected())
 			{
-				String msg = readMessage();
-				System.out.println(user.getUsername()+": "+msg);
-
-				if(msg != null)
+				String res=inStream.readLine();
+				
+				if(user.getInSessionWith() == null)
 				{
-					if(msg.startsWith("/"))//msg is cmd
+					String msg = interpretMessage(res);
+					System.out.println(user.getUsername()+": OTR: "+msg);	
+					
+					if(msg != null)
 					{
-						handleCommand(msg);
-					}else if(user.getInSessionWith() != null)//msg is 
+						if(msg.startsWith("/"))//msg is cmd
+						{
+							handleCommand(msg);
+						}
+					}
+					else
 					{
-						/*System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
-						user.getInSessionWith().getOutStream().write(data);
-						user.getInSessionWith().getOutStream().flush();*/ //TODO: implement
+						user.Disconnect();
 					}
 				}
-				else
+				else 
 				{
-					user.Disconnect();
+					System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
+					PrintWriter partnersStream = user.getInSessionWith().getOutStream();
+					partnersStream.println(res);
+					partnersStream.flush();
 				}
 					
 			}
@@ -105,33 +113,46 @@ public class ReadFromUser implements Runnable{
 						{
 							this.notify();
 						}
-						
+						try
+						{
+							sendMessage(user,"/success \""+userToConnTo.getUsername()+"\"");
+							sendMessage(userToConnTo,"/success \""+user.getUsername()+"\"");
+						}catch(Exception e)
+						{
+							e.printStackTrace();//TODO: handle better, stop user session.
+						}
 						
 					}
 					else
 					{
-						user.setWaitingForSessionConfirmationFrom(userToConnTo);
-						userToConnTo.getOutStream().write( Charset.forName("UTF-8").encode("/c \""+user.getUsername()+"\"").array() );			
-						userToConnTo.getOutStream().flush();
-						try {
-							synchronized(userToConnTo.getReadingThread())
-							{
-								userToConnTo.getReadingThread().wait((long)30000);//thread waits 30 sec for other user to confirm chat session
-							}
+						try
+						{
+							user.setWaitingForSessionConfirmationFrom(userToConnTo);
+							sendMessage(userToConnTo,"/c \""+user.getUsername()+"\"");
 	
-						} catch (InterruptedException e) {
+							try {
+								synchronized(userToConnTo.getReadingThread())
+								{
+									userToConnTo.getReadingThread().wait((long)30000);//thread waits 30 sec for other user to confirm chat session
+								}
+		
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+							
+							user.setWaitingForSessionConfirmationFrom(null);
+							if(userToConnTo.getInSessionWith() == user)
+							{
+								System.out.println(userToConnTo.getUsername() +" confirmed conn starting session with, "+user.getUsername());
+								user.startChatSessionWith(userToConnTo);
+							}
+							else
+							{
+								System.out.println(userToConnTo.getUsername()+" did not confirm conn" + user.getUsername() +" will not start session." );
+							}
+						}catch(Exception e)
+						{
 							e.printStackTrace();
-						}
-						
-						user.setWaitingForSessionConfirmationFrom(null);
-						if(userToConnTo.getInSessionWith() == user)
-						{
-							System.out.println(userToConnTo.getUsername() +" confirmed conn starting session with, "+user.getUsername());
-							user.startChatSessionWith(userToConnTo);
-						}
-						else
-						{
-							System.out.println(userToConnTo.getUsername()+" did not confirm conn" + user.getUsername() +" will not start session." );
 						}
 					}
 				}else
@@ -148,24 +169,25 @@ public class ReadFromUser implements Runnable{
 
 
 	}
-	private String readMessage() throws Exception
+	private String interpretMessage(String rawMessage) throws Exception
 	{
-		String res=inStream.readLine();
-		StringTLV stlv = us.messageReceiving(serverName, protocol, user.getUsername(), res, callback);
+
+		StringTLV stlv = MsgServer.serverInterface.messageReceiving(user.getUsername(), protocol, serverName, rawMessage, callback);
 		if(stlv!=null){
-			System.out.println("From network:"+res.length()+":"+res);
+			System.out.println("Raw from network:"+rawMessage.length()+":"+rawMessage);
 			return stlv.msg;
 		}
 		return "";
 	}
 	
-	private void sendMessage(String msg) throws Exception
+	private void sendMessage(User recipient,String msg) throws Exception
 	{
-		System.out.println("Sending: "+msg.length()+":"+msg);
+		conn=MsgServer.serverInterface.getContext(serverName, protocol, recipient.getUsername());
+		System.out.println("Sending to "+recipient.getUsername()+": "+msg.length()+":"+msg);
 		OTRTLV[] tlvs = new OTRTLV[1];
 		tlvs[0]=new TLV(9, "TestTLV".getBytes());
-		us.messageSending(user.getUsername(), protocol, serverName,
-				msg, tlvs, Policy.FRAGMENT_SEND_ALL, callback);
+		MsgServer.serverInterface.messageSending(serverName, protocol, recipient.getUsername(),
+				msg, null, Policy.FRAGMENT_SEND_ALL, recipient.getCallbacks() );
 	}
 	/*
 	 * Gets substring in parenthesis from string
