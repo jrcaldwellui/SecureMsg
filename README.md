@@ -6,6 +6,10 @@ Current functionallity:
 
 Multiple clients can connect to the server  
 Each can start a chat session with one other user  
+OTR protocol with server and client  
+OTR protocol between clients   
+Basic SMP between clients   
+
 
 client cmds     | function  
 /h              | help, list cmds  
