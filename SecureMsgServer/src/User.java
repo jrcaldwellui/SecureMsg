@@ -1,5 +1,12 @@
 import java.io.*;
 import java.util.concurrent.Future;
+import ca.uwaterloo.crysp.otr.TLV;
+import ca.uwaterloo.crysp.otr.iface.OTRCallbacks;
+import ca.uwaterloo.crysp.otr.iface.OTRContext;
+import ca.uwaterloo.crysp.otr.iface.OTRInterface;
+import ca.uwaterloo.crysp.otr.iface.OTRTLV;
+import ca.uwaterloo.crysp.otr.iface.Policy;
+import ca.uwaterloo.crysp.otr.iface.StringTLV;
 
 
 
@@ -9,23 +16,26 @@ import java.util.concurrent.Future;
  */
 public class User 
 {
-	public String getUsername() {
-		return username;
-	}
-	public BufferedInputStream getInStream() {
-		return inStream;
-	}
-	public BufferedOutputStream getOutStream() {
-		return outStream;
-	}
-
 	private final String username;
-	private final BufferedInputStream inStream;
+	private final BufferedReader inStream;
 	private final BufferedOutputStream outStream;
 	private final int timeConnected;
 	private boolean connected;
 	private User inSessionWith = null;
 	private User waitingForSessionConfirmationFrom = null;
+	private final OTRInterface us;
+	
+	public OTRInterface getInterface() {
+		return us;
+	}
+	public OTRCallbacks getCallbacks() {
+		return callbacks;
+	}
+
+	private final OTRCallbacks callbacks;
+	
+	
+	
 	public User getWaitingForSessionConfirmationFrom() {
 		return waitingForSessionConfirmationFrom;
 	}
@@ -51,11 +61,13 @@ public class User
 	public int getTimeConnected() {
 		return timeConnected;
 	}
-	User(String userName, BufferedInputStream inStream , BufferedOutputStream outStream, int timeConnected)
+	User(String userName, BufferedReader inStream , int timeConnected, OTRCallbacks callbacks, OTRInterface us)
 	{
 		this.username = userName;
 		this.inStream = inStream;
-		this.outStream = outStream;
+		this.callbacks = callbacks;
+		this.us = us;
+		this.outStream = null;//TODO: Address this will break other code
 		this.timeConnected = timeConnected;
 		connected = true;
 	}
@@ -110,6 +122,15 @@ public class User
 	}
 	public void setFutureOfThread(Future<?> futureOfThread) {
 		this.futureOfThread = futureOfThread;
+	}
+	public String getUsername() {
+		return username;
+	}
+	public BufferedReader getInStream() {
+		return inStream;
+	}
+	public BufferedOutputStream getOutStream() {
+		return outStream;
 	}
 	
 }
