@@ -14,5 +14,5 @@ client cmds     | function
 /e              | disconect from server  
   
 TODO:  
-OTR encrypt comms between user and server    
-OTR encrypt comms between user and user   
+Make functionallity cleaner  
+Look into removing metadata?  
