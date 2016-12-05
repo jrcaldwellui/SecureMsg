@@ -16,3 +16,35 @@ client cmds     | function
 TODO:  
 Make functionallity cleaner  
 Look into removing metadata?  
+Cmds break once session is started  
+ 
+TESTING:  
+start server
+
+start client  
+type in username then press enter  
+type anything then press enter, starts key exchange with server  
+
+start client  
+type in username then press enter  
+type anything then press enter, starts key exchange with server    
+  
+type /c "firstuser" on one client to start session with firstuser   
+type /c "seconduser" on other client to confirm session  with second user  
+
+should get session confimation on both clients    
+type anything thing then press enter on a client, this starts key exchange   
+should be able to chat now  
+note: cmds are broken is session, /d wont work  
+
+test smp:    
+while in session  
+one client types /isq  
+client should be prompted for secret question and answer    
+session partner will be prompted for response with  /rs   
+both users will see if it passed   
+
+
+
+
+
