@@ -1,7 +1,15 @@
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import ca.uwaterloo.crysp.otr.TLV;
+import ca.uwaterloo.crysp.otr.iface.OTRCallbacks;
+import ca.uwaterloo.crysp.otr.iface.OTRContext;
+import ca.uwaterloo.crysp.otr.iface.OTRInterface;
+import ca.uwaterloo.crysp.otr.iface.OTRTLV;
+import ca.uwaterloo.crysp.otr.iface.Policy;
+import ca.uwaterloo.crysp.otr.iface.StringTLV;
 
 
 /*
@@ -10,11 +18,24 @@ import java.util.regex.Pattern;
  */
 public class ReadFromUser implements Runnable{
 	User user;
-	
-	ReadFromUser( User user)
+	private final BufferedReader inStream;
+	private OTRInterface us;
+	private String protocol;
+	private String serverName;
+	private OTRContext conn;
+	private OTRCallbacks callback;
+
+	ReadFromUser(User user)
 	{
+		this.us=user.getInterface();
+		this.protocol = "none";
+		this.serverName = "Server";
+		this.callback = user.getCallbacks();
+		this.inStream = user.getInStream();
 		this.user = user;
+		this.conn=us.getContext(serverName, protocol, user.getUsername());
 	}
+
 	
 	@Override
 	public void run() {
@@ -22,21 +43,19 @@ public class ReadFromUser implements Runnable{
 		{
 			while(user.isConnected())
 			{
-				byte[] data = new byte[MsgServer.MAXMESSAGEBYTES];	   
-				int connectionStatus = user.getInStream().read(data,0,MsgServer.MAXMESSAGEBYTES);
-				String msg = MsgServer.getStringFromRawData(data);
-				System.out.println(user.getUsername()+": "+new String(msg));
-				
-				if(connectionStatus != -1)
+				String msg = readMessage();
+				System.out.println(user.getUsername()+": "+msg);
+
+				if(msg != null)
 				{
 					if(msg.startsWith("/"))//msg is cmd
 					{
 						handleCommand(msg);
 					}else if(user.getInSessionWith() != null)//msg is 
 					{
-						System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
+						/*System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
 						user.getInSessionWith().getOutStream().write(data);
-						user.getInSessionWith().getOutStream().flush();
+						user.getInSessionWith().getOutStream().flush();*/ //TODO: implement
 					}
 				}
 				else
@@ -47,6 +66,10 @@ public class ReadFromUser implements Runnable{
 			}
 		}
 		catch(IOException e)
+		{
+			e.printStackTrace();
+		}
+		catch(Exception e)
 		{
 			e.printStackTrace();
 		}
@@ -121,8 +144,29 @@ public class ReadFromUser implements Runnable{
 			System.out.println("Leaving current session");
 			user.leaveCurrentSession();
 		}
+		
+
+
+	}
+	private String readMessage() throws Exception
+	{
+		String res=inStream.readLine();
+		StringTLV stlv = us.messageReceiving(serverName, protocol, user.getUsername(), res, callback);
+		if(stlv!=null){
+			System.out.println("From network:"+res.length()+":"+res);
+			return stlv.msg;
+		}
+		return "";
 	}
 	
+	private void sendMessage(String msg) throws Exception
+	{
+		System.out.println("Sending: "+msg.length()+":"+msg);
+		OTRTLV[] tlvs = new OTRTLV[1];
+		tlvs[0]=new TLV(9, "TestTLV".getBytes());
+		us.messageSending(user.getUsername(), protocol, serverName,
+				msg, tlvs, Policy.FRAGMENT_SEND_ALL, callback);
+	}
 	/*
 	 * Gets substring in parenthesis from string
 	 * @param s string of format ..."infoToExtract"...

@@ -49,6 +49,7 @@ public class MsgClient {
 	static boolean incommingConnectionRequest = false;
 	static String connectedToUser = null; //name who client is concected to
 	static Socket client = null;
+	static String username = "";
 	/**
 	 * 
 	 * Set up threads for writing and reading to server
@@ -58,35 +59,29 @@ public class MsgClient {
 	 * @throws OTRException 
 	 */
 	public static void main(String[] args) throws IOException, OTRException {
-		executor = Executors.newCachedThreadPool();	
-		System.out.println("Starting client.");
-		System.out.print("Enter username: ");
-		String username = getInputFromConsole(MINNAMELEGTH,MAXMESSAGEBYTES);
-
 		// building the connection
 		client=new Socket(
 				InetAddress.getLocalHost(),
 				portNumber);
+		BufferedWriter out = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
+
+		BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+
 		
-		//stream to server
-		BufferedOutputStream out = new BufferedOutputStream( client.getOutputStream() );
-		out.write(Charset.forName("UTF-8").encode(username).array());
-		out.flush();
+		executor = Executors.newCachedThreadPool();	
+		System.out.println("Starting client.");
+		System.out.print("Enter username: ");
+		username = getInputFromConsole(MINNAMELEGTH,MAXMESSAGEBYTES);
 		
-		//stream from server
-		BufferedInputStream in = new BufferedInputStream( client.getInputStream() );
-		
-		//Ack from server
-		int size = 4;
-		byte[] data = new byte[size];
-		in.read(data,0,size);
-		String mes = Charset.forName("UTF-8").decode(ByteBuffer.wrap(data)).toString();//this is where server acknolges connections, send conn
-		System.out.printf("Server mess: %s\n",mes);
+		//OTR
+		OTRInterface localUser = new UserState(new ca.uwaterloo.crysp.otr.crypt.jca.JCAProvider());
+		OTRCallbacks callback = new LocalCallback(client);
 		
 		//TODO: confirm server connection before creating reading thread
-		executor.execute(new writeToServer(in,out));//TODO: clean up streams at some point
-		executor.execute(new readFromServer(in,out));
+		executor.execute(new writeToServer(localUser,username,"none","server", callback));//TODO: clean up streams at some point
+		executor.execute(new readFromServer(in,localUser,username,"none","server", callback));
 		executor.shutdown();
+
 	}			
 
 	/*
@@ -94,18 +89,30 @@ public class MsgClient {
 	 */
 	private static class writeToServer implements Runnable
 	{
-		private final BufferedInputStream inStream;
-		private final BufferedOutputStream outStream;
+		private OTRContext conn;
+		private OTRCallbacks callback;
+		private OTRInterface us;
+		private String accountname;
+		private String protocol;
+		private String recipient;
 		
-		writeToServer(BufferedInputStream inStream,BufferedOutputStream outStream)
+		writeToServer(OTRInterface us, String accName, String prot, String recName, OTRCallbacks callbacks)
 		{
-			this.inStream = inStream;
-			this.outStream = outStream;
+			//this.inStream = inStream;
+			this.us=us;
+			this.accountname = accName;
+			this.protocol = prot;
+			this.recipient = recName;
+			this.conn=us.getContext(accName, prot, recName);
+			this.callback = callbacks;
 		}
+
 		
 		@Override
 		public void run() {
 			try {
+				sendMsgToServer(username);//TODO: checks if username fails or is invalid
+
 				while(true)
 				{
 					System.out.print("Enter cmd/msg (/h for help): ");
@@ -127,6 +134,9 @@ public class MsgClient {
 				System.out.println("Write thread disconnected.");
 			}
 			catch (IOException e) {
+				e.printStackTrace();
+			}
+			catch(Exception e){
 				e.printStackTrace();
 			}
 		}
@@ -169,14 +179,16 @@ public class MsgClient {
 		}
 		
 		/*
-		 * encodes msg as UTF-8 and writes to server
 		 * @param msg String to send
 		 */
-		private void sendMsgToServer(String msg) throws IOException
+		private void sendMsgToServer(String msg) throws Exception
 		{
-			//TODO: validate UTF-8 chars
-			outStream.write(Charset.forName("UTF-8").encode(msg).array());
-			outStream.flush();
+			System.out.println("Sending: "+msg.length()+":"+msg);
+			OTRTLV[] tlvs = new OTRTLV[1];
+			tlvs[0]=new TLV(9, "TestTLV".getBytes());
+			us.messageSending(accountname, protocol, recipient,
+					msg, tlvs, Policy.FRAGMENT_SEND_ALL, callback);
+
 		}
 	}
 	
@@ -186,34 +198,52 @@ public class MsgClient {
 	 */
 	private static class readFromServer implements Runnable
 	{
-		private final BufferedInputStream inStream;
-		private final BufferedOutputStream outStream;
-		
-		readFromServer(BufferedInputStream inStream,BufferedOutputStream outStream)
-		{
+		private final BufferedReader inStream;
+		private OTRInterface us;
+		private String accountname;
+		private String protocol;
+		private String sender;
+		private OTRContext conn;
+		private OTRCallbacks callback;
+	
+		readFromServer(BufferedReader inStream,OTRInterface us, String accName,
+				String prot, String sendName, OTRCallbacks callbacks){
+			this.us=us;
+			this.accountname = accName;
+			this.protocol = prot;
+			this.sender = sendName;
+			this.conn=us.getContext(accName, prot, sendName);
+			this.callback = callbacks;
 			this.inStream = inStream;
-			this.outStream = outStream;
+	
 		}
+
 		
 		@Override
 		public void run() {
 			try {
 				while(true)
 				{
-					byte[] data = new byte[MAXMESSAGEBYTES];
-					inStream.read(data,0,MAXMESSAGEBYTES);//Reads 16bytes from stream	
-					String msg = getStringFromRawData(data);
+					String msg = inStream.readLine();
+					System.out.println("From network:"+msg.length()+":"+msg);
+					StringTLV stlv = us.messageReceiving(accountname, protocol, sender, msg, callback);
+					if(stlv!=null)
+					{
+						msg=stlv.msg;
+						System.out.println("From OTR:"+msg.length()+":"+msg);
+
 			
-					//check if cmd
-					if(msg.startsWith("/"))
-					{
-						System.out.println("\nServer: "+new String(msg));
-						handleCommandFromServer(msg);
-					}
-					else
-					{
-						System.out.println("\n"+connectedToUser+": "+new String(msg));
-						System.out.print("Enter cmd/msg: ");
+						//check if cmd
+						if(msg.startsWith("/"))
+						{
+							System.out.println("\nServer: "+new String(msg));
+							handleCommandFromServer(msg);
+						}
+						else
+						{
+							System.out.println("\n"+connectedToUser+": "+new String(msg));
+							System.out.print("Enter cmd/msg: ");
+						}
 					}
 				}
 			}catch (SocketException e){
@@ -221,7 +251,11 @@ public class MsgClient {
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			} 
+			} catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+
 		}
 		
 		/*
@@ -296,5 +330,94 @@ public class MsgClient {
 		}while(!valid);
 		return input;
 	}
+	
+	public static class LocalCallback implements OTRCallbacks
+	{
+		Socket soc;
+		PrintWriter out;
+		
+		public LocalCallback(Socket sock) throws IOException{
+			soc=sock;
+			out=new PrintWriter(soc.getOutputStream());
+		}
+	
+		public void injectMessage(String accName, String prot, String rec, String msg){
+			if(msg==null)return;
+			System.out.println("Injecting message to the recipient:"
+					+msg.length()+":\033[35m"+msg+"");
+			out.println(msg);
+			out.flush();
+		}
+	
+		public int getOtrPolicy(OTRContext conn) {
+			return Policy.DEFAULT;
+		}
+	
+		public void goneSecure(OTRContext context) {
+			System.out.println("AKE succeeded");
+		}
+	
+		public int isLoggedIn(String accountname, String protocol,
+				String recipient) {
+			return 1;
+		}
+	
+		public int maxMessageSize(OTRContext context) {
+			return 1000;
+		}
+	
+		public void newFingerprint(OTRInterface us,
+				String accountname, String protocol, String username,
+				byte[] fingerprint) {
+			System.out.println("New fingerprint is created.");
+		}
+	
+		public void stillSecure(OTRContext context, int is_reply) {
+			System.out.println("Still secure.");
+		}
+	
+		public void updateContextList() {
+			System.out.println("Updating context list.");
+		}
+	
+		public void writeFingerprints() {
+			System.out.println("Writing fingerprints.");
+		}
+	
+		public String errorMessage(OTRContext context, int err_code) {
+			if(err_code==OTRCallbacks.OTRL_ERRCODE_MSG_NOT_IN_PRIVATE){
+				return "You sent an encrypted message, but we finished" +
+						"the private conversation.";
+			}
+			return null;
+		}
+	
+		public void handleMsgEvent(int msg_event,
+				OTRContext context, String message) {
+			if(msg_event==OTRCallbacks.OTRL_MSGEVENT_CONNECTION_ENDED){
+				System.out.println("The private connection has already ended.");
+			}else if(msg_event==OTRCallbacks.OTRL_MSGEVENT_RCVDMSG_NOT_IN_PRIVATE){
+				System.out.println("We received an encrypted message, but we are not in" +
+						"encryption state.");
+			}
+		}
+	
+		public void handleSmpEvent(int smpEvent,
+				OTRContext context, int progress_percent, String question) {
+			if(smpEvent == OTRCallbacks.OTRL_SMPEVENT_ASK_FOR_SECRET){
+				System.out.println("The other side has initialized SMP." +
+						" Please respond with /rs.");
+			}else if(smpEvent == OTRCallbacks.OTRL_SMPEVENT_ASK_FOR_ANSWER){
+				System.out.println("The other side has initialized SMP, with question:" +
+						question + ", "+
+				" Please respond with /rs.");
+			}else if(smpEvent == OTRCallbacks.OTRL_SMPEVENT_SUCCESS){
+				System.out.println("SMP succeeded.");
+			}else if(smpEvent == OTRCallbacks.OTRL_SMPEVENT_FAILURE){
+				System.out.println("SMP failed.");
+			}	
+		}
+	}
+
 
 }

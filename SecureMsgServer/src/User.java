@@ -1,5 +1,12 @@
 import java.io.*;
 import java.util.concurrent.Future;
+import ca.uwaterloo.crysp.otr.TLV;
+import ca.uwaterloo.crysp.otr.iface.OTRCallbacks;
+import ca.uwaterloo.crysp.otr.iface.OTRContext;
+import ca.uwaterloo.crysp.otr.iface.OTRInterface;
+import ca.uwaterloo.crysp.otr.iface.OTRTLV;
+import ca.uwaterloo.crysp.otr.iface.Policy;
+import ca.uwaterloo.crysp.otr.iface.StringTLV;
 
 
 
@@ -12,23 +19,35 @@ public class User
 
 
 	private final String username;
-	private final BufferedInputStream inStream;
+	private final BufferedReader inStream;
 	private final BufferedOutputStream outStream;
 	private final int timeConnected;
 	private boolean connected;
 	private User inSessionWith = null;		//current chat session partner
 	private User waitingForSessionConfirmationFrom = null; //if user requests session this will contain the user they are requesting from
 	private ReadFromUser readingThread = null;	//thread server uses to read from this user
+	private final OTRInterface us;
 	
+	public OTRInterface getInterface() {
+		return us;
+	}
+	public OTRCallbacks getCallbacks() {
+		return callbacks;
+	}
 
-	User(String userName, BufferedInputStream inStream , BufferedOutputStream outStream, int timeConnected)
+	private final OTRCallbacks callbacks;
+
+	User(String userName, BufferedReader inStream , int timeConnected, OTRCallbacks callbacks, OTRInterface us)
 	{
 		this.username = userName;
 		this.inStream = inStream;
-		this.outStream = outStream;
+		this.callbacks = callbacks;
+		this.us = us;
+		this.outStream = null;//TODO: Address this will break other code
 		this.timeConnected = timeConnected;
 		connected = true;
 	}
+
 	
 	/*
 	 * Call to clean up streams affiliated with user, do not continue to use User after disconnect is called.
@@ -93,7 +112,7 @@ public class User
 	public String getUsername() {
 		return username;
 	}
-	public BufferedInputStream getInStream() {
+	public BufferedReader getInStream() {
 		return inStream;
 	}
 	public BufferedOutputStream getOutStream() {
