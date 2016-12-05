@@ -29,8 +29,8 @@ start client
 type in username then press enter  
 type anything then press enter, starts key exchange with server    
   
-type /c "firstuser" on one client to start session with firstuser   
-type /c "seconduser" on other client to confirm session  with second user  
+type /c "firstusername" on one client to start session with someone named firstusername    
+type /c "secondusername" on other client to confirm session  with someone named secondusername    
 
 should get session confimation on both clients    
 type anything thing then press enter on a client, this starts key exchange   
