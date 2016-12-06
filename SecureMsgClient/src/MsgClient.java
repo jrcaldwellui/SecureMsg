@@ -61,22 +61,22 @@ public class MsgClient {
 	 */
 	public static void main(String[] args) throws IOException, OTRException {
 		// building the connection
+		System.out.println("Starting client.");
+		System.out.print("Enter username: ");
+		username = getInputFromConsole(MINNAMELEGTH,MAXMESSAGEBYTES);
 		client=new Socket(
 				InetAddress.getLocalHost(),
 				portNumber);
 		BufferedWriter out = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
-
 		BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
 
 		
 		executor = Executors.newCachedThreadPool();	
-		System.out.println("Starting client.");
-		System.out.print("Enter username: ");
-		username = getInputFromConsole(MINNAMELEGTH,MAXMESSAGEBYTES);
-		
+
+			
 		//OTR
 		OTRInterface localUser = new UserState(new ca.uwaterloo.crysp.otr.crypt.jca.JCAProvider());
-		OTRCallbacks callback = new LocalCallback(client);
+		LocalCallback callback = new LocalCallback(client);
 		
 		//TODO: confirm server connection before creating reading thread
 		executor.execute(new writeToServer(localUser,username,"none",serverName, callback));//TODO: clean up streams at some point
@@ -91,14 +91,14 @@ public class MsgClient {
 	private static class writeToServer implements Runnable
 	{
 		private OTRContext conn;
-		private OTRCallbacks callback;
+		private LocalCallback callback;
 		private OTRInterface us;
 		private String accountname;
 		private String protocol;
 		private String recipient;
 		private boolean connected;
 		
-		writeToServer(OTRInterface us, String accName, String prot, String recName, OTRCallbacks callbacks)
+		writeToServer(OTRInterface us, String accName, String prot, String recName, LocalCallback callbacks)
 		{
 			//this.inStream = inStream;
 			connected = true;
@@ -115,6 +115,7 @@ public class MsgClient {
 		public void run() {
 			try {
 				sendMsgToServer(username, serverName);//TODO: checks if username fails or is invalid
+				sendMsgToServer("", serverName);//start key exchange
 
 				while(connected)
 				{
@@ -185,6 +186,10 @@ public class MsgClient {
 					System.out.println("Invalid cmd, type /h for help.");
 					return true;
 				}
+			}else if(cmd.startsWith("/d"))
+			{
+				connectedToUser = null;
+				return false;
 			}else if(cmd.startsWith("/e"))
 			{
 				connected =false;
@@ -219,17 +224,28 @@ public class MsgClient {
 		}
 		
 		/*
-		 * @param msg String to send
+		 * Sends messages based on otr, the command /d as plaintext to server
+		 * @param msg String to send,
+		 * @param recipientName, typically serverName or clientName
 		 */
 		private void sendMsgToServer(String msg, String recipientName) throws Exception
 		{
-			System.out.println("Sending: "+msg.length()+":"+msg);
-			String result =us.messageSending(accountname, protocol, recipientName,
-					msg, null, Policy.FRAGMENT_SEND_ALL, callback);//TODO: fix so msg doesn't need fwd slash
-			if(result != null)
+			if(msg.startsWith("/d"))//plain text command
 			{
-				System.out.println("Results: "+ result);
+				callback.out.println(msg);
+				callback.out.flush();
 			}
+			else
+			{
+				System.out.println("Sending: "+msg.length()+":"+msg);
+				String result =us.messageSending(accountname, protocol, recipientName,
+						msg, null, Policy.FRAGMENT_SEND_ALL, callback);//TODO: fix so msg doesn't need fwd slash
+				if(result != null)
+				{
+					System.out.println("Results: "+ result);
+				}
+			}
+
 		}
 
 	}
@@ -298,10 +314,6 @@ public class MsgClient {
 								System.out.println("\n"+connectedToUser+": "+new String(msg));
 								System.out.print("Enter cmd/msg: ");
 							}
-						}
-						else
-						{
-							System.out.println("stlv was null!");
 						}
 					}
 				}
@@ -415,7 +427,7 @@ public class MsgClient {
 class LocalCallback implements OTRCallbacks
 {
 	Socket soc;
-	PrintWriter out;
+	public PrintWriter out;
 	
 	public LocalCallback(Socket sock) throws IOException{
 		soc=sock;
@@ -454,15 +466,15 @@ class LocalCallback implements OTRCallbacks
 	}
 
 	public void stillSecure(OTRContext context, int is_reply) {
-		System.out.println("Still secure.");
+		//System.out.println("Still secure.");
 	}
 
 	public void updateContextList() {
-		System.out.println("Updating context list.");
+		//System.out.println("Updating context list.");
 	}
 
 	public void writeFingerprints() {
-		System.out.println("Writing fingerprints.");
+		//System.out.println("Writing fingerprints.");
 	}
 
 	public String errorMessage(OTRContext context, int err_code) {

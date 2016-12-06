@@ -45,8 +45,12 @@ public class ReadFromUser implements Runnable{
 			while(user.isConnected())
 			{
 				String res=inStream.readLine();
-				
-				if(user.getInSessionWith() == null)
+				if(res != null && res.startsWith("/"))//plain text command from network
+				{
+					System.out.println("plaintext cmd from client");
+					handleCommand(res);
+				}
+				else if(user.getInSessionWith() == null)//encrypted command from network
 				{
 					String msg = interpretMessage(res);
 					System.out.println(user.getUsername()+": OTR: "+msg);	
@@ -63,7 +67,7 @@ public class ReadFromUser implements Runnable{
 						user.Disconnect();
 					}
 				}
-				else 
+				else //message fwding over network
 				{
 					System.out.println(user.getUsername()+" fwding mess to "+ user.getInSessionWith().getUsername());
 					PrintWriter partnersStream = user.getInSessionWith().getOutStream();
@@ -163,7 +167,7 @@ public class ReadFromUser implements Runnable{
 		}else if(cmd.startsWith("/d"))
 		{
 			System.out.println("Leaving current session");
-			user.leaveCurrentSession();
+			user.endSession();
 		}
 		
 
