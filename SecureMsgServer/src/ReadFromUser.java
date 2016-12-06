@@ -53,14 +53,21 @@ public class ReadFromUser implements Runnable{
 				}
 				else if(user.getInSessionWith() == null)//encrypted command from network
 				{
-					String msg = interpretMessage(res);
-					System.out.println(user.getUsername()+": OTR: "+msg);	
-					
-					if(msg != null)
+					if(res != null)
 					{
-						if(msg.startsWith("/"))//msg is cmd
+						String msg = interpretMessage(res);
+						System.out.println(user.getUsername()+": OTR: "+msg);	
+						
+						if(msg != null)
 						{
-							handleCommand(msg);
+							if(msg.startsWith("/"))//msg is cmd
+							{
+								handleCommand(msg);
+							}
+						}
+						else
+						{
+							user.Disconnect();
 						}
 					}
 					else

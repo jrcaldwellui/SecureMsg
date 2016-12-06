@@ -168,7 +168,7 @@ public class MsgClient {
 				return false;
 			}else if(cmd.startsWith("/e"))
 			{
-				connected =false;
+				connected = false;
 				client.close();
 				return true;
 			}else if(cmd.startsWith("/isq")){ // The following SMP work: based on @author Can Tang <c24tang@gmail.com> library
