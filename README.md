@@ -14,7 +14,7 @@ Basic SMP between clients
 client cmds     | function  
 /h              | help, list cmds  
 /c "username"   | start chat session with username(type qoutes)  
-/d              | leave chat session  //currently broken     
+/d              | leave chat session      
 /e              | disconect from server  
   
 TODO:  
@@ -27,11 +27,9 @@ start server
 
 start client  
 type in username then press enter  
-type anything then press enter, starts key exchange with server  
 
 start client  
 type in username then press enter  
-type anything then press enter, starts key exchange with server    
   
 type /c "firstusername" on one client to start session with someone named firstusername    
 type /c "secondusername" on other client to confirm session  with someone named secondusername    
@@ -39,7 +37,6 @@ type /c "secondusername" on other client to confirm session  with someone named 
 should get session confimation on both clients    
 type anything thing then press enter on a client, this starts key exchange   
 should be able to chat now  
-note: cmds are broken is session, /d wont work  
 
 test smp:    
 while in session  
