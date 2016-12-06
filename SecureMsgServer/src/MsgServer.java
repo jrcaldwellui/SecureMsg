@@ -165,7 +165,10 @@ public class MsgServer {
 	}
 }
 
-
+/** 
+ * Provided by library
+ * @author Can Tang <c24tang@gmail.com>
+ */
 class LocalCallback implements OTRCallbacks
 {
 	PrintWriter out;
