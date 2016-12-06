@@ -18,11 +18,7 @@
  */
 
 
-/**
- * This class simulates two IM clients talking in OTR
- *
- * @author Can Tang <c24tang@gmail.com>
- */
+
 
 import java.net.*;
 import java.io.*;
@@ -168,6 +164,7 @@ public class MsgClient {
 			if(cmd.startsWith("/h"))
 			{
 				System.out.println("cmd list:");
+				System.out.println("/l for list of connected users");
 				System.out.println("/e disconnect from server");
 				System.out.println("/c \"username\" connect to user" );
 				System.out.println("/d disconnect from user");
@@ -195,7 +192,7 @@ public class MsgClient {
 				connected =false;
 				client.close();
 				return true;
-			}else if(cmd.startsWith("/isq")){
+			}else if(cmd.startsWith("/isq")){ // The following SMP work: based on @author Can Tang <c24tang@gmail.com> library
 				conn=us.getContext(username, protocol, connectedToUser);
 				System.out.println("Please input the question");
 				String question = getInputFromConsole(1,164);
@@ -354,7 +351,12 @@ public class MsgClient {
 					connectedToUser = name;
 					System.out.println("Chat Session started with "+name);
 				}
-			}//TODO: session ended commmand, connectedToUser might be wrong otherwise
+			}
+			else if(cmd.startsWith("/l"))
+			{
+				System.out.println("All users: ");
+				System.out.println(cmd);
+			}
 		}
 		
 		/*
@@ -374,8 +376,12 @@ public class MsgClient {
 		}
 		
 		/*
+		 * 
 		 *  removes zero entries from end of byte array return UTF-8 rep string
+		 *  @param data 
+		 *  
 		 */
+		
 		public static String getStringFromRawData(byte[] data)
 		{
 			int numOfZeroBytesAtEnd = 0;
@@ -395,7 +401,6 @@ public class MsgClient {
 			String mess = Charset.forName("UTF-8").decode(ByteBuffer.wrap(newData)).toString();
 			return mess;
 		}
-		
 	}
 
 	/*
@@ -424,6 +429,12 @@ public class MsgClient {
 	
 	
 }
+
+/**
+ * This class simulates two IM clients talking in OTR
+ * Provided by library
+ * @author Can Tang <c24tang@gmail.com>
+ */
 class LocalCallback implements OTRCallbacks
 {
 	Socket soc;

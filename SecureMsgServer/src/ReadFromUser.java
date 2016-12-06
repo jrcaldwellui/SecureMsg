@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
+import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import ca.uwaterloo.crysp.otr.TLV;
@@ -98,7 +99,7 @@ public class ReadFromUser implements Runnable{
 	/*
 	 * manages all actions 
 	 */
-	private void handleCommand(String cmd) throws IOException
+	private void handleCommand(String cmd) throws Exception
 	{
 		if(cmd.startsWith("/c"))//TODO: clean bloated chunk of code
 		{
@@ -169,10 +170,21 @@ public class ReadFromUser implements Runnable{
 			System.out.println("Leaving current session");
 			user.endSession();
 		}
+		else if(cmd.startsWith("/l"))
+		{
+			System.out.println("List cmd");
+			String allUsers = "/l ";
+			Iterator<User> it = MsgServer.usersInLobby.iterator();
+			while(it.hasNext())
+			{
+				allUsers = allUsers + it.next().getUsername() + " ";
+			}
+			System.out.println(allUsers);
+			sendMessage(user,allUsers);
+		}
 		
-
-
 	}
+	
 	private String interpretMessage(String rawMessage) throws Exception
 	{
 

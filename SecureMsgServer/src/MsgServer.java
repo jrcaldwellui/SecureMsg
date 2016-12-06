@@ -39,7 +39,7 @@ public class MsgServer {
 	final static int MAXMESSAGEBYTES = 160;//keep consistent with client
 	public static OTRInterface serverInterface; 
 	static long serverCreationTime;
-	static ArrayList<User> usersInLobby= new ArrayList<User>();
+	public static ArrayList<User> usersInLobby= new ArrayList<User>();
 	
 	public static void main(String[] args) throws IOException {
 		executor = Executors.newCachedThreadPool();	
