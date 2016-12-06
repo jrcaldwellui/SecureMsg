@@ -14,7 +14,7 @@ Basic SMP between clients
 client cmds     | function  
 /h              | help, list cmds  
 /c "username"   | start chat session with username(type qoutes)  
-/d              | leave chat session  
+/d              | leave chat session  //currently broken     
 /e              | disconect from server  
   
 TODO:  
